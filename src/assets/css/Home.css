@@ -1,0 +1,189 @@
+:root {
+    --background-color: #f8f9fa;
+    --text-color: #343a40;
+    --card-background: white;
+    --card-hover: #e9ecef;
+    --link-color: #007bff;
+    --css-100-love: rgba(77, 10, 10, 0.104);
+    --anningui: 20%;
+    transition: all 0.3s ease; /* 为所有变量添加过渡动画 */
+}
+
+.light-theme {
+    --background-color: #f8f9fa;
+    --text-color: #343a40;
+    --card-background: white;
+    --card-hover: #e9ecef;
+    --link-color: #007bff;
+    --css-100-love: rgba(77, 10, 10, 0.104);
+    --anningui: 20%;
+    transition: all 0.3s ease; /* 为所有变量添加过渡动画 */
+}
+
+.dark-theme {
+    --background-color: #343a40;
+    --text-color: white;
+    --card-background: #495057;
+    --card-hover: #6c757d;
+    --link-color: #0d6efd;
+    --css-100-love: linear-gradient(to right, #0e131d, #0a1421);
+    --anningui: 100%;
+    transition: all 0.3s ease; /* 为所有变量添加过渡动画 */
+}
+
+.AnNingUI {
+    .textImg-text {
+        font-weight:normal;
+        font-size: 2.0rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        .text {
+            background: #e6c7c7;
+            height: 2px;
+            width: 130px;
+        }
+        .textImg-img {
+            width: 14px;
+            height: auto;
+            filter: invert(var(--anningui));
+            z-index: -1;
+        }
+    }
+}
+
+.home {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: "Arial", sans-serif;
+    color: var(--text-color);
+}
+
+.title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+}
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.card {
+    background: var(--card-background);
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: transform 0.3s;
+    padding: 16px;
+}
+
+.card:hover {
+    background: var(--card-hover);
+    transform: translateY(-5px);
+}
+
+.card-link {
+    user-select: none;
+    text-decoration: none;
+    color: inherit;
+}
+
+.card-image {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-bottom: 1px solid var(--card-hover);
+    margin-bottom: 12px;
+}
+
+.card-name {
+    user-select: none;
+    font-size: 1.5rem;
+    margin: 10px 0;
+    color: var(--link-color);
+}
+
+.card-description {
+    user-select: none;
+    font-size: 1rem;
+    color: var(--text-color);
+}
+
+.theme-toggle {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.toggle-button {
+    display: flex;
+    padding: 6px 6px;
+    border: none;
+    border-radius: 50px;
+    background-color: var(--link-color);
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+
+    .toggle-button-icon {
+        display: none;
+    }
+
+    .toggle-button-icon-dark {
+        display: none;
+    }
+}
+
+.mobile .toggle-button {
+    display: block;
+    .toggle-button-text {
+        display: none;
+    }
+
+    .toggle-button-icon,
+    .toggle-button-icon-dark {
+        display: block;
+        transition: transform 0.3s ease; /* 添加过渡效果 */
+    }
+
+    .toggle-button-icon-dark {
+        transform: rotate(180deg); /* 初始旋转状态 */
+        opacity: 1; /* 初始透明度 */
+    }
+
+    &.active {
+        .toggle-button-icon {
+            transform: rotate(0deg); /* 重置旋转 */
+            opacity: 0.5; /* 显示 */
+        }
+
+        .toggle-button-icon-dark {
+            transform: rotate(0deg); /* 重置旋转 */
+            opacity: 0.5; /* 显示 */
+        }
+    }
+}
+
+.toggle-button:hover {
+    background-color: #0056b3;
+}
+
+.controls [for="bodyCount"] {
+    color: var(--text-color);
+}
+
+body:has(#NBody) {
+    background: var(--card-background);
+}
+
+body:has(#css100love) {
+    background: var(--css-100-love);
+}
+
+.controls [for="collisionDistance"] {
+    color: var(--text-color);
+}
