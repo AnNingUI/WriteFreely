@@ -1,35 +1,36 @@
 {
-  "name": "loveapp",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "tauri-b": "tauri build",
-    "tauri-d": "tauri dev",
-    "tauri-a-b": "tauri android build",
-    "tauri-a-d": "tauri android dev"
-  },
-  "dependencies": {
-    "@tauri-apps/api": ">=2.0.0",
-    "@tauri-apps/plugin-shell": ">=2.0.0",
-    "konva": "^9.3.15",
-    "lit": "^3.2.0",
-    "loveapp": "file:",
-    "mobile-detect": "^1.4.5",
-    "pixi.js": "^8.5.1",
-    "vue": "^3.3.4",
-    "vue-router": "^4.4.5"
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": ">=2.0.0",
-    "@vitejs/plugin-vue": "^5.0.5",
-    "@vue/runtime-dom": "^3.5.13",
-    "typescript": "^5.2.2",
-    "vite": "^5.3.1",
-    "vue-tsc": "^2.1.6"
-  }
+	"name": "loveapp",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vue-tsc --noEmit && vite build",
+		"preview": "vite preview",
+		"tauri": "tauri",
+		"tauri-b": "tauri build",
+		"tauri-d": "tauri dev",
+		"tauri-a-b": "tauri android build",
+		"tauri-a-d": "tauri android dev"
+	},
+	"dependencies": {
+		"@tauri-apps/api": ">=2.0.0",
+		"@tauri-apps/plugin-shell": ">=2.0.0",
+		"kaia-fp": "^1.0.1",
+		"konva": "^9.3.15",
+		"lit": "^3.2.0",
+		"loveapp": "file:",
+		"mobile-detect": "^1.4.5",
+		"pixi.js": "^8.5.1",
+		"vue": "^3.3.4",
+		"vue-router": "^4.4.5"
+	},
+	"devDependencies": {
+		"@tauri-apps/cli": ">=2.0.0",
+		"@vitejs/plugin-vue": "^5.0.5",
+		"@vue/runtime-dom": "^3.5.13",
+		"typescript": "^5.2.2",
+		"vite": "^5.3.1",
+		"vue-tsc": "^2.1.6"
+	}
 }
