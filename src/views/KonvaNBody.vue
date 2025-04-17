@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { is, match } from "kaia-fp";
+import { is, matchSync } from "kaia-fp";
 import Konva from "konva";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 
@@ -46,7 +46,7 @@ class NBody {
         const dy = other.y - this.y;
         const distSq = dx * dx + dy * dy;
 
-        match()
+        matchSync()
           .with(is.number().lt((this.radius + other.radius + cd) ** 2).match, () => {
             const [larger, smaller] = this.mass >= other.mass ? [this, other] : [other, this];
             this.orbitRadius = larger.radius + smaller.radius + cd;
@@ -149,12 +149,14 @@ function animate() {
       const distSq = dx * dx + dy * dy;
 
       if (distSq < (a.radius + b.radius + cdnum.value) ** 2) {
-        (async () => {
-          const [colorA, colorB, ra, rb] = await handleColor(ar, br).run([a, b]);
+        const t = handleColor(ar, br).run([a, b]);
+        if (t?.isRight()) {
+          const [colorA, colorB, ra, rb] = t.value;
           ra.setColor(colorA);
           rb.setColor(colorB);
           ra.drawLineTo(rb);
-        })()
+        }
+
       } else {
         ar.setColor("white");
         br.setColor("white");
@@ -171,7 +173,7 @@ function animate() {
 
 const handleColor = (br: NBodyRenderer, or: NBodyRenderer) => {
   type Res = ["red" | "white", "white" | "red", NBodyRenderer, NBodyRenderer];
-  return match<[NBody, NBody], Res>()
+  return matchSync<[NBody, NBody], Res>()
     .with2(([a, b]) => a.mass > b.mass, () => ["red", "white", br, or])
     .with2(([a, b]) => a.mass < b.mass, () => ["red", "white", or, br])
     .otherwise(() => ["white", "white", br, or]);

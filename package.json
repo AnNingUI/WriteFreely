@@ -16,7 +16,7 @@
 	"dependencies": {
 		"@tauri-apps/api": ">=2.0.0",
 		"@tauri-apps/plugin-shell": ">=2.0.0",
-		"kaia-fp": "^1.0.1",
+		"kaia-fp": "^1.0.2",
 		"konva": "^9.3.15",
 		"lit": "^3.2.0",
 		"loveapp": "file:",
