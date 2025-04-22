@@ -5,7 +5,7 @@
 
     <label for="collisionDistance">相遇距离: {{ copycdnum }} px</label>
     <input type="range" id="collisionDistance" min="5" max="200" value="5" @input="cdnumChange" />
-
+    <div>平均FPS: {{ FPS }}</div>
     <div id="space"></div>
   </div>
 </template>
@@ -18,6 +18,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 const bdnum = ref(10);
 const cdnum = ref(5);
 const copycdnum = ref(5);
+const FPS = ref(0);
 const bodies = ref<NBody[]>([]);
 const renderers = ref<NBodyRenderer[]>([]);
 const G = 6.6743e-11;
@@ -163,14 +164,14 @@ function benchmarkFrameRate() {
     frameTimes[frameIndex++] = delta;
   }
 
-  if (now - benchmarkStart >= 5000) {
+  if (now - benchmarkStart >= 1000) {
     let sum = 0;
     for (let i = 0; i < frameIndex; i++) {
       sum += frameTimes[i];
     }
     const avgDelta = sum / frameIndex;
     const avgFps = 1000 / avgDelta;
-    console.log(`[Benchmark] 平均 FPS: ${avgFps.toFixed(2)}`);
+    FPS.value = Math.round(avgFps);
     frameIndex = 0;
     benchmarkStart = now;
   }

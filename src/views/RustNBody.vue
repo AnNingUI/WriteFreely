@@ -68,7 +68,7 @@ const animationFrameId = ref<number | null>(null);
 const bufferCanvas = document.createElement("canvas");
 const bufferCtx = bufferCanvas.getContext("2d");
 const FPS = ref(0);
-const bodies = ref<NBody[]>([]);
+const bodies = ref<Map<number, NBody>>(new Map());
 
 const initializeSimulation = async () => {
     try {
@@ -85,7 +85,9 @@ const initializeSimulation = async () => {
                 canvasWidth: canvasWidth.value,
                 canvasHeight: canvasHeight.value,
             });
-            bodies.value = newBodies;
+            newBodies.forEach((body) => {
+                bodies.value.set(body.id, body);
+            });
 
             // 设置缓冲画布大小
             bufferCanvas.width = canvasWidth.value;
@@ -141,23 +143,22 @@ const animate = async () => {
                 showBallFun(bufferCtx, body);
             }
 
-            const otherBodys = self.filter((otherBody) => {
-                return inAABB(body, otherBody, collisionDistance.value) && body.id !== otherBody.id;
-            });
-            otherBodys.forEach((otherBody, i) => {
-                let dx = body.x - otherBody.x;
-                let dy = body.y - otherBody.y;
-                let d2 = dx * dx + dy * dy;
-                if (showLine.value) {
-                    showLineFun(bufferCtx, body, otherBody, i)
-                }
-                if (showOrbit.value) {
-                    if (Math.sqrt(d2) <= body.radius + otherBody.radius + collisionDistance.value) {
-                        showOrbitFun(bufferCtx, body, otherBody)
-                        showBall.value && showBallFun(bufferCtx, body);
+            for (let [otherId, otherBody] of self) {
+                if (inAABB(body, otherBody, collisionDistance.value) && body.id !== otherId) {
+                    let dx = body.x - otherBody.x;
+                    let dy = body.y - otherBody.y;
+                    let d2 = dx * dx + dy * dy;
+                    if (showLine.value) {
+                        showLineFun(bufferCtx, body, otherBody, otherId)
+                    }
+                    if (showOrbit.value) {
+                        if (Math.sqrt(d2) <= body.radius + otherBody.radius + collisionDistance.value) {
+                            showOrbitFun(bufferCtx, body, otherBody)
+                            showBall.value && showBallFun(bufferCtx, body);
+                        }
                     }
                 }
-            })
+            }
 
 
 
@@ -208,13 +209,15 @@ function showOrbitFun(ctx: CanvasRenderingContext2D, body: NBody, otherBody: NBo
 }
 
 const updateSimulation = async () => {
-    bodies.value = [];
+    bodies.value.clear();
     try {
         if (ctx.value && canvas.value) {
             const updatedBodies: NBody[] = await invoke("update_simulation", {
                 dd: Number(collisionDistance.value),
             });
-            bodies.value = updatedBodies;
+            updatedBodies.forEach((body) => {
+                bodies.value.set(body.id, body);
+            });
         }
     } catch (error) {
         console.error("Error updating simulation:", error);
@@ -276,6 +279,7 @@ onUnmounted(() => {
     if (animationFrameId.value !== null) {
         cancelAnimationFrame(animationFrameId.value);
     }
+    bodies.value.clear();
     window.removeEventListener("resize", handleResize);
 });
 </script>
