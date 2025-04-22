@@ -21,18 +21,19 @@
         </div>
 
         <label for="bodyCount">天体数量: <span>{{ bodyCount }}</span></label>
-        <input type="range" id="bodyCount" min="1" max="200" v-model="bodyCount" @change="initializeSimulation" />
+        <input type="range" id="bodyCount" min="1" max="100" v-model="bodyCount" @change="initializeSimulation" />
 
         <label for="collisionDistance">相遇距离: <span>{{ collisionDistance }}</span> px</label>
-        <input type="range" id="collisionDistance" min="1" max="20" v-model="collisionDistance" @change="updateSimulation" />
-
+        <input type="range" id="collisionDistance" min="1" max="200" v-model="collisionDistance"
+            @change="updateSimulation" />
+        <div>平均FPS: {{ FPS }}</div>
         <canvas ref="canvas" :width="canvasWidth" :height="canvasHeight"></canvas>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, onBeforeUnmount } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { onBeforeUnmount, onMounted, onUnmounted, ref } from "vue";
 
 interface NBody {
     id: number;
@@ -45,6 +46,11 @@ interface NBody {
     angle: number;
     orbit_radius: number;
     is_center: boolean;
+}
+
+const inAABB = (self: NBody, other: NBody, cd: number) => {
+    const distSq = Math.sqrt((other.x - self.x) ** 2 + (other.y - self.y) ** 2);
+    return distSq > 0 && distSq - self.radius - other.radius <= cd;
 }
 
 // const dpr = window.devicePixelRatio || 1; // 获取设备像素比
@@ -61,7 +67,7 @@ const ctx = ref<CanvasRenderingContext2D | null>(null);
 const animationFrameId = ref<number | null>(null);
 const bufferCanvas = document.createElement("canvas");
 const bufferCtx = bufferCanvas.getContext("2d");
-
+const FPS = ref(0);
 const bodies = ref<NBody[]>([]);
 
 const initializeSimulation = async () => {
@@ -93,6 +99,33 @@ const initializeSimulation = async () => {
     }
 };
 
+const frameTimes = new Float32Array(600);
+let frameIndex = 0;
+let lastFrameTime = performance.now();
+let benchmarkStart = performance.now();
+
+function benchmarkFrameRate() {
+    const now = performance.now();
+    const delta = now - lastFrameTime;
+    lastFrameTime = now;
+
+    if (frameIndex < frameTimes.length) {
+        frameTimes[frameIndex++] = delta;
+    }
+
+    if (now - benchmarkStart >= 1000) {
+        let sum = 0;
+        for (let i = 0; i < frameIndex; i++) {
+            sum += frameTimes[i];
+        }
+        const avgDelta = sum / frameIndex;
+        const avgFps = 1000 / avgDelta;
+        FPS.value = Number(avgFps.toFixed(2));
+        frameIndex = 0;
+        benchmarkStart = now;
+    }
+}
+
 const animate = async () => {
     if (ctx.value && canvas.value && bufferCtx) {
         // 清除缓冲画布
@@ -108,26 +141,25 @@ const animate = async () => {
                 showBallFun(bufferCtx, body);
             }
 
-            self.forEach((otherBody, i) => {
-                if (body.id !== otherBody.id) {
-                    let dx = body.x - otherBody.x;
-                    let dy = body.y - otherBody.y;
-                    let d2 = dx * dx + dy * dy;
-                    if (showLine.value) {
-                        showLineFun(bufferCtx, body, otherBody, i)
+            const otherBodys = self.filter((otherBody) => {
+                return inAABB(body, otherBody, collisionDistance.value) && body.id !== otherBody.id;
+            });
+            otherBodys.forEach((otherBody, i) => {
+                let dx = body.x - otherBody.x;
+                let dy = body.y - otherBody.y;
+                let d2 = dx * dx + dy * dy;
+                if (showLine.value) {
+                    showLineFun(bufferCtx, body, otherBody, i)
+                }
+                if (showOrbit.value) {
+                    if (Math.sqrt(d2) <= body.radius + otherBody.radius + collisionDistance.value) {
+                        showOrbitFun(bufferCtx, body, otherBody)
+                        showBall.value && showBallFun(bufferCtx, body);
                     }
-                    if (showOrbit.value) {
-                        if (Math.sqrt(d2) <= body.radius + otherBody.radius + collisionDistance.value) {
-                            showOrbitFun(bufferCtx, body, otherBody)
-                            showBall.value && showBallFun(bufferCtx, body);
-                        }
-                    }
-                } else {
-                    return
                 }
             })
 
-            
+
 
             if (showId.value) {
                 bufferCtx.strokeStyle = "red";
@@ -141,28 +173,29 @@ const animate = async () => {
         ctx.value.drawImage(bufferCanvas, 0, 0);
 
         // 循环下一帧
+        benchmarkFrameRate()
         animationFrameId.value = requestAnimationFrame(animate);
     }
 };
 
-function showBallFun (ctx: CanvasRenderingContext2D, body: NBody) {
+function showBallFun(ctx: CanvasRenderingContext2D, body: NBody) {
     ctx.fillStyle = body.is_center && showOrbit.value ? "red" : "white";
     ctx.beginPath();
     ctx.arc(body.x, body.y, body.radius, 0, 2 * Math.PI);
     ctx.fill();
 }
 
-function showLineFun (ctx: CanvasRenderingContext2D, body: NBody, otherBody: NBody, i: number) {
-    ctx.strokeStyle = `rgba(${Math.min(255, Math.abs(127 - i))}, 127, 127, ${1/(i + 1)})`; // 例如红色
+function showLineFun(ctx: CanvasRenderingContext2D, body: NBody, otherBody: NBody, i: number) {
+    ctx.strokeStyle = `rgba(${Math.min(255, Math.abs(127 - i))}, 127, 127, ${1 / (i + 1)})`; // 例如红色
     ctx.beginPath();
     ctx.moveTo(body.x, body.y);
     ctx.lineTo(otherBody.x, otherBody.y);
     ctx.stroke();
 }
 
-function showOrbitFun (ctx: CanvasRenderingContext2D, body: NBody, otherBody: NBody) {
+function showOrbitFun(ctx: CanvasRenderingContext2D, body: NBody, otherBody: NBody) {
     let obj = { body, otherBody };
-    let maxBody = Object.values(obj).reduce((max, current) => 
+    let maxBody = Object.values(obj).reduce((max, current) =>
         current.radius > max.radius ? current : max
     );
     maxBody.is_center = true;
@@ -175,6 +208,7 @@ function showOrbitFun (ctx: CanvasRenderingContext2D, body: NBody, otherBody: NB
 }
 
 const updateSimulation = async () => {
+    bodies.value = [];
     try {
         if (ctx.value && canvas.value) {
             const updatedBodies: NBody[] = await invoke("update_simulation", {
@@ -247,10 +281,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-
 body {
-  margin: 0;
-  padding: 0;
+    margin: 0;
+    padding: 0;
 }
 
 .controls {

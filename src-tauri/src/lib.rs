@@ -2,7 +2,7 @@
 
 use rand::Rng;
 use serde::Serialize;
-use std::{borrow::BorrowMut, sync::Mutex};
+use std::sync::Mutex;
 use tauri::{command, State};
 
 // 定义 NBody 结构体，作为纯数据结构进行序列化
@@ -17,7 +17,7 @@ struct NBody {
     vy: f64,
     angle: f64,
     orbit_radius: f64,
-    is_center: bool
+    is_center: bool,
 }
 
 impl NBody {
@@ -33,8 +33,21 @@ impl NBody {
             vy: rng.gen_range(-1.0..1.0),
             angle: 0.0,
             orbit_radius: 0.0,
-            is_center: false
+            is_center: false,
         }
+    }
+
+    fn in_aabb(&self, other: &NBody, dd: f64) -> bool {
+        let dist_sp = (other.x - self.x).powi(2) + (other.y - self.y).powi(2);
+        if dist_sp < dd + other.radius + self.radius && dist_sp > 0.0 {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn set_is_center(&mut self, is_center: bool) {
+        self.is_center = is_center;
     }
 }
 
@@ -60,66 +73,74 @@ impl Simulation {
     }
 
     fn update_simulation(&mut self, dd: f64) {
-        let g = 6.67430e-11; // 引力常数
-        let mut bodies_clone = self.bodies.clone();
+        let g = 6.67430e-11;
+        let len = self.bodies.len();
 
-        for i in 0..self.bodies.len() {
-            let body = &mut self.bodies[i];
-            for j in 0..bodies_clone.len() {
-                if i == j {
-                    continue;
+        // 1) 两层循环，i < j，保证每对处理一次
+        for i in 0..len {
+            'other: for j in (i + 1)..len {
+                // split_at_mut(j) 把 Vec 分成 [0..j] 和 [j..]
+                let (left, right) = self.bodies.split_at_mut(j);
+                let body_i = &mut left[i];
+                let body_j = &mut right[0];
+                if body_i.in_aabb(body_j, dd) {
+                    continue 'other;
                 }
-                let other = &mut bodies_clone[j].borrow_mut();
-                let dx = other.x - body.x;
-                let dy = other.y - body.y;
-                let distance_sq = dx * dx + dy * dy;
-                let distance = distance_sq.sqrt();
 
-                if distance < body.radius + other.radius + dd {
-                    // 简单的碰撞处理：停止移动
-                    if body.radius >= other.radius {
-                        body.is_center = true;
-                        body.orbit_radius = body.radius + other.radius + dd;
-                        other.angle += 0.05;
-                        other.x = body.x + body.orbit_radius * other.angle.cos();
-                        other.y = body.y + body.orbit_radius * other.angle.sin();
+                // 2) 计算 i 与 j 间的距离和引力/碰撞
+                let dx = body_j.x - body_i.x;
+                let dy = body_j.y - body_i.y;
+                let dist_sq = dx * dx + dy * dy;
+                let dist = dist_sq.sqrt();
+
+                if dist < body_i.radius + body_j.radius + dd {
+                    // 碰撞逻辑（示例）
+                    if body_i.radius >= body_j.radius {
+                        body_i.set_is_center(true);
+                        body_i.orbit_radius = body_i.radius + body_j.radius + dd;
+                        body_j.angle += 0.05;
+                        body_j.x = body_i.x + body_i.orbit_radius * body_j.angle.cos();
+                        body_j.y = body_i.y + body_i.orbit_radius * body_j.angle.sin();
                     } else {
-                        other.is_center = true;
-                        body.orbit_radius = body.radius + other.radius + dd;
-                        body.angle += 0.05;
-                        body.x = other.x + body.orbit_radius * body.angle.cos();
-                        body.y = other.y + body.orbit_radius * body.angle.sin();
+                        body_j.set_is_center(true);
+                        body_j.orbit_radius = body_i.radius + body_j.radius + dd;
+                        body_i.angle += 0.05;
+                        body_i.x = body_j.x + body_j.orbit_radius * body_i.angle.cos();
+                        body_i.y = body_j.y + body_j.orbit_radius * body_i.angle.sin();
                     }
-                    
-                    // return;
                 } else {
-                    // 计算引力
-                    body.is_center = false;
-                    let force = g * body.mass * other.mass / distance_sq;
-                    body.vx += force * dx / distance / body.mass;
-                    body.vy += force * dy / distance / body.mass;
+                    body_i.set_is_center(false);
+                    body_j.set_is_center(false);
+                    // 万有引力计算，注意作用力是等大反向
+                    let force = g * body_i.mass * body_j.mass / dist_sq;
+                    let ax = force * dx / dist / body_i.mass;
+                    let ay = force * dy / dist / body_i.mass;
+                    body_i.vx += ax;
+                    body_i.vy += ay;
+                    body_j.vx -= ax;
+                    body_j.vy -= ay;
                 }
             }
+        }
 
-            // 更新位置
+        // 3) 最后统一更新所有天体的位置和边界反弹
+        for body in &mut self.bodies {
             body.x += body.vx;
             body.y += body.vy;
-
             // 边界反弹
             if body.x < body.radius {
                 body.x = body.radius;
-                body.vx *= -1.0;
+                body.vx = -body.vx;
             } else if body.x > self.canvas_width - body.radius {
                 body.x = self.canvas_width - body.radius;
-                body.vx *= -1.0;
+                body.vx = -body.vx;
             }
-
             if body.y < body.radius {
                 body.y = body.radius;
-                body.vy *= -1.0;
+                body.vy = -body.vy;
             } else if body.y > self.canvas_height - body.radius {
                 body.y = self.canvas_height - body.radius;
-                body.vy *= -1.0;
+                body.vy = -body.vy;
             }
         }
     }
@@ -165,7 +186,7 @@ fn create_bodies(
 
     for i in 0..count {
         let radius = rng.gen_range(5.0..15.0);
-        let mass = rng.gen_range(1.0..100.0);
+        let mass = radius * 10.0 * 5.0;
         let x = rng.gen_range(radius..(canvas_width - radius));
         let y = rng.gen_range(radius..(canvas_height - radius));
         let body = NBody::new(i as i32, x, y, mass, radius);
@@ -219,4 +240,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

@@ -1,7 +1,7 @@
 <template>
   <div class="controls" id="NBody">
     <label for="bodyCount">天体数量: {{ bdnum }}</label>
-    <input type="range" id="bodyCount" min="10" max="50" value="10" @input="bdnumChange" />
+    <input type="range" id="bodyCount" min="10" max="100" value="10" @input="bdnumChange" />
 
     <label for="collisionDistance">相遇距离: {{ copycdnum }} px</label>
     <input type="range" id="collisionDistance" min="5" max="200" value="5" @input="cdnumChange" />
@@ -11,7 +11,6 @@
 </template>
 
 <script setup lang="ts">
-import { is, matchSync } from "kaia-fp";
 import Konva from "konva";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 
@@ -36,32 +35,40 @@ class NBody {
   vy = Math.random() * 2 - 1;
   angle = 0;
   orbitRadius = 0;
+  id!: number;
+  private static instances: Map<number, NBody> = new Map();
 
-  constructor(public x: number, public y: number, public mass: number, public radius: number) { }
+  constructor(public x: number, public y: number, public mass: number, public radius: number, id: number) {
+    this.id = id
+    NBody.instances.set(id, this)
+  }
+
+  static get(id: number) {
+    return NBody.instances.get(id)
+  }
+
+  inAABB(nBody: NBody, cd: number) {
+    const distSq = Math.sqrt((nBody.x - this.x) ** 2 + (nBody.y - this.y) ** 2);
+    return distSq > 0 && distSq - this.radius - nBody.radius <= cd;
+  }
 
   update(bodies: NBody[], G: number, cd: number) {
-    for (let other of bodies) {
-      if (other !== this) {
-        const dx = other.x - this.x;
-        const dy = other.y - this.y;
-        const distSq = dx * dx + dy * dy;
-
-        matchSync()
-          .with(is.number().lt((this.radius + other.radius + cd) ** 2).match, () => {
-            const [larger, smaller] = this.mass >= other.mass ? [this, other] : [other, this];
-            this.orbitRadius = larger.radius + smaller.radius + cd;
-            smaller.angle += 0.05;
-            smaller.x = larger.x + this.orbitRadius * Math.cos(smaller.angle);
-            smaller.y = larger.y + this.orbitRadius * Math.sin(smaller.angle);
-          })
-          .otherwise(() => {
-            const force = (G * this.mass * other.mass) / distSq;
-            const ax = (force * dx) / Math.sqrt(distSq);
-            const ay = (force * dy) / Math.sqrt(distSq);
-            this.vx += ax / this.mass;
-            this.vy += ay / this.mass;
-          })
-          .run(distSq);
+    for (let other of bodies.filter((n) => n.inAABB(this, cd) && n.id !== this.id)) {
+      const dx = other.x - this.x;
+      const dy = other.y - this.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < (this.radius + other.radius + cd) ** 2) {
+        const [larger, smaller] = this.mass >= other.mass ? [this, other] : [other, this];
+        this.orbitRadius = larger.radius + smaller.radius + cd;
+        smaller.angle += 0.05;
+        smaller.x = larger.x + this.orbitRadius * Math.cos(smaller.angle);
+        smaller.y = larger.y + this.orbitRadius * Math.sin(smaller.angle);
+      } else {
+        const force = (G * this.mass * other.mass) / distSq;
+        const ax = (force * dx) / Math.sqrt(distSq);
+        const ay = (force * dy) / Math.sqrt(distSq);
+        this.vx += ax / this.mass;
+        this.vy += ay / this.mass;
       }
     }
 
@@ -82,7 +89,8 @@ class NBody {
 
 class NBodyRenderer {
   body: Konva.Circle;
-
+  id!: number;
+  private static instances: Map<number, NBodyRenderer> = new Map();
   constructor(public layer: Konva.Layer, public nBody: NBody) {
     this.body = new Konva.Circle({
       x: nBody.x,
@@ -92,7 +100,17 @@ class NBodyRenderer {
       stroke: "blue",
       strokeWidth: 2,
     });
+    this.id = nBody.id
     this.layer.add(this.body);
+    NBodyRenderer.instances.set(nBody.id, this);
+  }
+
+  static get(id: number) {
+    return NBodyRenderer.instances.get(id)
+  }
+
+  static by(nbody: NBody) {
+    return NBodyRenderer.instances.get(nbody.id) as NBodyRenderer
   }
 
   draw() {
@@ -123,61 +141,87 @@ function createBodies(layer: Konva.Layer) {
     const body = new NBody(
       Math.random() * (canvasWidth.value - radius * 2) + radius,
       Math.random() * (canvasHeight.value - radius * 2) + radius,
-      Math.random() * 10 + 5,
-      radius
+      radius * 10 + 5,
+      radius,
+      i
     );
     bodies.value.push(body);
     renderers.value.push(new NBodyRenderer(layer, body));
   }
 }
+const frameTimes = new Float32Array(600);
+let frameIndex = 0;
+let lastFrameTime = performance.now();
+let benchmarkStart = performance.now();
+
+function benchmarkFrameRate() {
+  const now = performance.now();
+  const delta = now - lastFrameTime;
+  lastFrameTime = now;
+
+  if (frameIndex < frameTimes.length) {
+    frameTimes[frameIndex++] = delta;
+  }
+
+  if (now - benchmarkStart >= 5000) {
+    let sum = 0;
+    for (let i = 0; i < frameIndex; i++) {
+      sum += frameTimes[i];
+    }
+    const avgDelta = sum / frameIndex;
+    const avgFps = 1000 / avgDelta;
+    console.log(`[Benchmark] 平均 FPS: ${avgFps.toFixed(2)}`);
+    frameIndex = 0;
+    benchmarkStart = now;
+  }
+}
 
 function animate() {
+  // 清除旧线
+  lineGroup.destroyChildren();
   // 物理更新
   for (let body of bodies.value) {
     body.update(bodies.value, G, cdnum.value);
   }
-
-  // 清除旧线
-  lineGroup.destroyChildren();
-
-  // 处理颜色和连线
   for (let i = 0; i < bodies.value.length; i++) {
-    for (let j = i + 1; j < bodies.value.length; j++) {
-      const a = bodies.value[i], b = bodies.value[j];
-      const ar = renderers.value[i] as NBodyRenderer, br = renderers.value[j] as NBodyRenderer;
-      const dx = b.x - a.x, dy = b.y - a.y;
+    const self = bodies.value[i];
+    const selfRenderer = NBodyRenderer.by(self)
+    const others = bodies.value.filter((n) => n.inAABB(self, cdnum.value) && n.id !== self.id);
+    if (others.length === 0) {
+      selfRenderer.setColor("white");
+    }
+    for (let other of others) {
+      const otherRenderer = NBodyRenderer.by(other);
+      const dx = other.x - self.x, dy = other.y - self.y;
       const distSq = dx * dx + dy * dy;
 
-      if (distSq < (a.radius + b.radius + cdnum.value) ** 2) {
-        const t = handleColor(ar, br).run([a, b]);
-        if (t?.isRight()) {
-          const [colorA, colorB, ra, rb] = t.value;
-          ra.setColor(colorA);
-          rb.setColor(colorB);
-          ra.drawLineTo(rb);
+      if (distSq < (self.radius + other.radius + cdnum.value) ** 2) {
+        if (self.mass > other.mass) {
+          selfRenderer.setColor("red");
+          otherRenderer.setColor("white");
+          selfRenderer.drawLineTo(otherRenderer);
+        } else {
+          selfRenderer.setColor("white");
+          otherRenderer.setColor("red");
+          otherRenderer.drawLineTo(selfRenderer);
         }
-
       } else {
-        ar.setColor("white");
-        br.setColor("white");
+        selfRenderer.setColor("white");
+        otherRenderer.setColor("white");
       }
     }
   }
+
+
 
   // 最后统一 draw 所有 body
   for (let r of renderers.value) r.draw();
 
   stage?.batchDraw();
+  benchmarkFrameRate()
   requestAnimationFrame(animate);
 }
 
-const handleColor = (br: NBodyRenderer, or: NBodyRenderer) => {
-  type Res = ["red" | "white", "white" | "red", NBodyRenderer, NBodyRenderer];
-  return matchSync<[NBody, NBody], Res>()
-    .with2(([a, b]) => a.mass > b.mass, () => ["red", "white", br, or])
-    .with2(([a, b]) => a.mass < b.mass, () => ["red", "white", or, br])
-    .otherwise(() => ["white", "white", br, or]);
-};
 
 function updateCanvasSize() {
   const cw = window.innerWidth / 1.5;
